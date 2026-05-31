@@ -1,0 +1,48 @@
+  ╔════════════════════════════════════════════════════════╗
+  ║  ┌────────────────────────────────────────────────┐  ║
+  ║  │  ◉  CODE OLYMPICS 2026  ·  co-check            │  ║
+  ║  │      GitHub 4D Constraint Auditor              │  ║
+  ║  │  D1 Core │ D2 Lines │ D3 Domain │ D4 Language  │  ║
+  ║  └────────────────────────────────────────────────┘  ║
+  ╚════════════════════════════════════════════════════════╝
+
+  Target: lllyasviel/SingleFileDB
+
+  ✓  Connecting to GitHub...
+  ✓  Branch: main
+  ✓  Tree: 2 entries
+  ✓  Files: 1 analyzed, 0 skipped
+  ✓  Analysis complete
+
+  ╔════════════════════════════════════════════════════════╗
+  ║           PASSED CONSTRAINTS REPORT                  ║
+  ╚════════════════════════════════════════════════════════╝
+
+  Scan: 1 files | Language: Python | Countable lines: 121
+
+  D1 -- Core Constraints
+  +----------------------------------+----------------------------------+----------------------------------+----------------------------------+
+  | Few-Variable Hero               | One-Loop Warrior                | Short-Name Ninja                | Fast-Response Builder           |
+  +----------------------------------+----------------------------------+----------------------------------+----------------------------------+
+
+  D2 -- Line Budget (tightest tier)
+  +----------------------------------+
+  | Compact Coder (121 lines)       |
+  +----------------------------------+
+
+  D3 -- Project Domain
+  +----------------------------------+
+  | Simple Games                    |
+  +----------------------------------+
+
+  D4 -- Primary Language
+  +----------------------------------+
+  | Python                          |
+  +----------------------------------+
+
+  Total passed: 7
+
+  Note: Heuristic scan; max 80 files; lines exclude blanks/comments.
+  Report saved: co-check-report.txt
+
+  Done.
