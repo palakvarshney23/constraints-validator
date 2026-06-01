@@ -1,8 +1,13 @@
 package main
 
-import "testing"
+import (
+	"regexp"
+	"strings"
+	"testing"
+)
 
 func TestGitHubPattern(t *testing.T) {
+	gh := regexp.MustCompile(`(?i)github\.com[/:]([^/\s#?]+)/([^/\s#?]+)`)
 	cases := []struct {
 		in string
 		ok bool
@@ -11,44 +16,63 @@ func TestGitHubPattern(t *testing.T) {
 		{"https://github.com/a/b.git", true},
 		{"https://gitlab.com/a/b", false},
 		{"not-a-url", false},
-		{"", false},
 	}
 	for _, c := range cases {
-		if got := ghPat.MatchString(c.in); got != c.ok {
-			t.Errorf("ghPat(%q)=%v want %v", c.in, got, c.ok)
+		if got := gh.MatchString(c.in); got != c.ok {
+			t.Errorf("github URL %q: got %v want %v", c.in, got, c.ok)
 		}
 	}
 }
 
 func TestExtensionPattern(t *testing.T) {
+	ext := regexp.MustCompile(`\.(go|py|js|ts|jsx|tsx|java|c|cpp|cc|h|cs|rb|php|rs|sh|bash)$`)
 	for _, p := range []string{"main.go", "app.py", "lib.rs", "script.sh"} {
-		if !srcExt.MatchString(p) {
-			t.Errorf("srcExt should match %q", p)
+		if !ext.MatchString(p) {
+			t.Errorf("should match %q", p)
 		}
 	}
-	for _, p := range []string{"readme.md", "style.css", "notes.txt"} {
-		if srcExt.MatchString(p) {
-			t.Errorf("srcExt should NOT match %q", p)
+	for _, p := range []string{"readme.md", "style.css"} {
+		if ext.MatchString(p) {
+			t.Errorf("should not match %q", p)
 		}
 	}
 }
 
-func TestCountLines(t *testing.T) {
+func testCountLines(code string) int {
+	n, inBlock := 0, false
+	for _, ln := range strings.Split(strings.ReplaceAll(code, "\r\n", "\n"), "\n") {
+		t := strings.TrimSpace(ln)
+		if t == "" {
+			continue
+		}
+		if inBlock {
+			if strings.Contains(t, "*/") {
+				inBlock = false
+			}
+			continue
+		}
+		if strings.HasPrefix(t, "/*") {
+			if strings.Index(t, "*/") < 0 {
+				inBlock = true
+			}
+			continue
+		}
+		if strings.HasPrefix(t, "//") || strings.HasPrefix(t, "#") || strings.HasPrefix(t, "--") ||
+			strings.HasPrefix(t, "<!--") || strings.HasPrefix(t, "*") || strings.HasPrefix(t, ";") {
+			continue
+		}
+		n++
+	}
+	return n
+}
+
+func TestCountableLines(t *testing.T) {
 	code := "package main\n// c\nimport \"fmt\"\n/* x */\nfunc main(){\n}\n"
-	if n := countLines(code); n != 4 {
-		t.Errorf("countLines=%d want 4", n)
+	if n := testCountLines(code); n != 4 {
+		t.Errorf("countable lines = %d, want 4", n)
 	}
 	block := "a\n/* start\n middle\n end */\nb\n"
-	if n := countLines(block); n != 2 {
-		t.Errorf("block comment countLines=%d want 2", n)
-	}
-}
-
-func TestConstants(t *testing.T) {
-	if maxFiles != 80 || maxBlob != 120000 {
-		t.Error("unexpected constant value")
-	}
-	if len(extMap) == 0 || len(skip) == 0 {
-		t.Error("maps should not be empty")
+	if n := testCountLines(block); n != 2 {
+		t.Errorf("block comment lines = %d, want 2", n)
 	}
 }

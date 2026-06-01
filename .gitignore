@@ -1,0 +1,22 @@
+# Build outputs
+co-check
+co-check.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Generated reports
+co-check-report.txt
+
+# Go
+*.test
+coverage.out
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+*.log

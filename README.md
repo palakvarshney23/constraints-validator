@@ -39,7 +39,7 @@ A **Go CLI** that scans any public GitHub repository and lists **passed** Code O
 - **`-h` / `--help`** — usage information and environment hints
 - **Passed-only report** — horizontal tables per dimension (failures hidden for clean output)
 - **D2 first tier detection** — identifies the tightest passing line budget from 9 tiers (50 → 650 lines)
-- **D3 first domain detection** — weighted keyword match across source code, README, repo metadata, topics, and repo name
+- **D3 top 3 domains** — weighted keyword scoring; shows up to 3 matches as `Name (score, %)` (share of total D3 signal)
 - **D4 primary language** — GitHub API language or dominant file extension fallback
 - **README fetch** — improves D3 domain detection by reading README content
 
@@ -66,7 +66,7 @@ A **Go CLI** that scans any public GitHub repository and lists **passed** Code O
 
 ### D2 — Line Budget: Feature-Rich Dev (400 lines max)
 - **Rule:** Maximum 400 lines of countable code (non-blank, non-comment)
-- **Implementation:** ~315 lines total, well under the 400-line limit
+- **Implementation:** ~320 lines total, well under the 400-line limit
 - **Countable lines:** Excludes blank lines, single-line comments (`//`, `#`, `--`, `<!--`), and block comments (`/* ... */`)
 - **Why it matters:** Forces ruthless prioritization—every line must earn its place
 
@@ -85,7 +85,7 @@ A **Go CLI** that scans any public GitHub repository and lists **passed** Code O
 ## Why This Project Wins
 
 ### 1. Maximum Utility in Minimum Space
-In just **~315 lines**, this tool performs:
+In just **~320 lines**, this tool performs:
 - 4 GitHub API calls (repo metadata, branch resolution, file tree, blob downloads)
 - README base64 decoding and content analysis
 - Multi-language source code parsing (12+ languages)
@@ -342,20 +342,19 @@ Scored across 3 evidence sources with weighted confidence:
 
 ```
 co-check/
-├── main.go                 # Single source file (~315 lines)
-│   ├── main()              # Entry point + CLI parsing
-│   └── analyze()           # Master function: all audit logic
-│       ├── GitHub API phase      # 4 API calls with progress spinners
-│       ├── File download phase   # Blob fetching + filtering
-│       ├── Analysis phase        # Regex-based constraint detection
-│       └── Report phase          # Console output + file write
-├── go.mod                  # Module definition (no external deps)
-├── main_test.go            # Unit tests
-├── run.sh / run.bat        # Quick run scripts
-├── co-check-report.txt     # Sample output
+├── main.go                    # Single source file (~320 lines): main() + analyze()
+├── go.mod                     # Module definition (no external deps)
+├── main_test.go               # Unit tests (regex + line counting)
+├── index.html                 # Project landing page
+├── co-check-rosetta.py        # Optional Python Rosetta Stone (stdlib)
+├── run.sh / run.bat           # Quick run scripts
+├── DEMO.md                    # Judge demo walkthrough
+├── .github/workflows/ci.yml   # go vet, gofmt, test, build
 ├── code-olym-constraints.png  # Challenge combination image
-└── README.md               # This file
+└── README.md                  # This file
 ```
+
+Generated at runtime (gitignored): `co-check`, `co-check.exe`, `co-check-report.txt`
 
 ### Design Philosophy
 - **Single master function** (`analyze`) respects D1 while remaining readable via section comments and logical flow
@@ -381,7 +380,7 @@ co-check/
 | Dimension | Rule | Status | Evidence |
 |-----------|------|--------|----------|
 | **D1** | Single-Function Master | ✅ PASS | `main()` + `analyze()` only |
-| **D2** | Feature-Rich Dev (400 lines) | ✅ PASS | ~315 countable lines |
+| **D2** | Feature-Rich Dev (400 lines) | ✅ PASS | ~320 lines (under 400) |
 | **D3** | Basic Tools | ✅ PASS | GitHub constraint audit tool |
 | **D4** | Go | ✅ PASS | Standard library only |
 

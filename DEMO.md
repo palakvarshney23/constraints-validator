@@ -1,6 +1,6 @@
 # Demo Walkthrough
 
-## 1. Build & Verify Zero Warnings
+## 1. Build & verify
 
 ```bash
 go vet ./...
@@ -9,52 +9,33 @@ go test -v ./...
 go build -o co-check .
 ```
 
-All four commands should exit cleanly (zero warnings, zero test failures, binary produced).
-
-## 2. Run on a Public Repo
+## 2. Run on a public repo
 
 ```bash
-export GITHUB_TOKEN="ghp_xxx"  # optional but recommended
-echo "https://github.com/golang/example" | ./co-check
+# optional — avoids GitHub API rate limits
+export GITHUB_TOKEN="ghp_xxx"
+
+./co-check https://github.com/owner/repo
+# or interactive:
+go run .
 ```
 
-Expected output includes:
-- **D1 Core Constraints** PASS/FAIL with evidence counts
-- **D2 Line Budget** comparison against all 8 tiers
-- **D3 Domain** keyword matching
-- **D4 Language** detection
-- **Code Olympics Score** (0-100)
-- **Best Fit Tier** recommendation
+## 3. Expected output
 
-## 3. Run with Assigned Constraints
+- Progress spinners for each GitHub API phase
+- **PASSED CONSTRAINTS REPORT** with horizontal tables (D1–D4)
+- D2: tightest passing line tier
+- D3: up to 3 domains with score and % share
+- `co-check-report.txt` saved in the working directory
 
-When prompted, enter:
-- D1: `Single-Function Master`
-- D2: `Feature-Rich Dev`
-- D3: `Basic Tools`
-- D4: `Go`
+## 4. Landing page
 
-You will see a targeted verdict:
+Open `index.html` in a browser for the project overview (no build step).
 
-```
-CHALLENGE VERDICT: ALL ASSIGNED CONSTRAINTS MET
-```
-
-(or a gap report if any fail).
-
-## 4. Inspect the Gap Report
-
-If any D1 rules fail, the tool prints `What To Fix` with actionable advice for each failed rule.
-
-## 5. Run the Rosetta Stone (Python)
+## 5. Optional — Python Rosetta Stone
 
 ```bash
-python co-check.py
-# Paste the same GitHub URL and compare output architecture.
+python co-check-rosetta.py https://github.com/owner/repo
 ```
 
-Observe how Python's natural decomposition into `fetch`, `parse_url`, `lines`, and `analyze` contrasts with Go's single-function imperative scanner.
-
-## 6. Read the Cross-Constraint Combo
-
-Open `README.md` and scroll to **Cross-Constraint Combo** to see how the collision of Single-Function Master × Feature-Rich Dev × Go produced the "Global Pattern Library + Sequential Imperative Scanner" emergent architecture.
+Same audit idea with a decomposed Python architecture (stdlib only).

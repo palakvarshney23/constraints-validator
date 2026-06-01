@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>co-check — GitHub Constraint Auditor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+    <style>
+        :root {
+            --calc-yellow: #E6B800;
+            --calc-amber: #F0A500;
+            --calc-gold: #D4A017;
+            --calc-dark: #1C1C1E;
+            --calc-charcoal: #2C2C2E;
+            --calc-gray: #8E8E93;
+            --calc-light: #F5F5F0;
+            --calc-cream: #FAF9F6;
+            --calc-lcd: #C8D6AF;
+            --calc-lcd-glow: #D4E5B5;
+            --calc-orange: #FF6B35;
+            --mono: 'Space Mono', monospace;
+            --serif: 'Playfair Display', serif;
+            --sans: 'Inter', sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html {
+            scroll-behavior: smooth;
+            scrollbar-width: thin;
+            scrollbar-color: var(--calc-yellow) var(--calc-dark);
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--calc-dark); }
+        ::-webkit-scrollbar-thumb { background: var(--calc-yellow); border-radius: 3px; }
+
+        body {
+            font-family: var(--sans);
+            background: var(--calc-cream);
+            color: var(--calc-dark);
+            overflow-x: hidden;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            body { cursor: none; }
+        }
+
+        /* ─── CURSOR ─── */
+        .cursor {
+            width: 12px; height: 12px;
+            background: var(--calc-yellow);
+            border-radius: 50%;
+            position: fixed; pointer-events: none; z-index: 10000;
+            mix-blend-mode: difference;
+            transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .cursor.hover { transform: scale(2.5); background: var(--calc-orange); }
+        .cursor-ring {
+            width: 40px; height: 40px;
+            border: 1px solid var(--calc-yellow);
+            border-radius: 50%;
+            position: fixed; pointer-events: none; z-index: 9999;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            opacity: 0.5;
+        }
+        .cursor-ring.hover {
+            width: 60px; height: 60px;
+            border-color: var(--calc-orange);
+            opacity: 0.8;
+        }
+
+        /* ─── BACKGROUND DECOR ─── */
+        .bg-layer {
+            position: fixed; inset: 0; pointer-events: none; z-index: 0;
+            overflow: hidden;
+        }
+
+        .bg-calc-icon {
+            position: absolute; font-size: clamp(80px, 15vw, 200px);
+            opacity: 0.025; filter: grayscale(1);
+            font-family: var(--serif); font-weight: 700;
+            color: var(--calc-dark); user-select: none;
+            animation: drift 30s ease-in-out infinite;
+        }
+        .bg-calc-icon:nth-child(1) { top: -5%; left: 5%; animation-delay: 0s; }
+        .bg-calc-icon:nth-child(2) { top: 20%; right: -2%; animation-delay: -5s; font-size: 120px; }
+        .bg-calc-icon:nth-child(3) { top: 45%; left: -3%; animation-delay: -10s; }
+        .bg-calc-icon:nth-child(4) { top: 70%; right: 8%; animation-delay: -15s; font-size: 90px; }
+        .bg-calc-icon:nth-child(5) { bottom: 5%; left: 30%; animation-delay: -20s; }
+
+        @keyframes drift {
+            0%, 100% { transform: translate(0,0) rotate(0deg); }
+            33% { transform: translate(30px, -40px) rotate(5deg); }
+            66% { transform: translate(-20px, -60px) rotate(-3deg); }
+        }
+
+        .grid-overlay {
+            position: fixed; inset: 0; pointer-events: none; z-index: 1;
+            background-image:
+                linear-gradient(rgba(230,184,0,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(230,184,0,0.03) 1px, transparent 1px);
+            background-size: 80px 80px;
+        }
+
+        /* ─── NOISE TEXTURE ─── */
+        .noise {
+            position: fixed; inset: 0; pointer-events: none; z-index: 2;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            background-repeat: repeat;
+            background-size: 256px 256px;
+        }
+
+        /* ─── NAV ─── */
+        nav {
+            position: fixed; top: 0; left: 0; width: 100%; z-index: 100;
+            padding: 1.5rem 3rem;
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(250,249,246,0.85);
+            backdrop-filter: blur(20px) saturate(180%);
+            border-bottom: 1px solid rgba(28,28,30,0.06);
+            transform: translateY(-100%);
+        }
+        .nav-brand {
+            font-family: var(--mono); font-size: 0.9rem; font-weight: 700;
+            letter-spacing: 1px; color: var(--calc-dark);
+            display: flex; align-items: center; gap: 0.6rem;
+        }
+        .nav-brand::before {
+            content: ''; width: 8px; height: 8px; background: var(--calc-yellow);
+            border-radius: 2px; display: inline-block;
+        }
+        .nav-links {
+            display: flex; gap: 2.5rem; list-style: none;
+        }
+        .nav-links a {
+            font-family: var(--mono); font-size: 0.75rem; text-transform: uppercase;
+            letter-spacing: 1.5px; color: var(--calc-gray); text-decoration: none;
+            position: relative; padding-bottom: 4px;
+            transition: color 0.3s;
+        }
+        .nav-links a:hover { color: var(--calc-dark); }
+        .nav-links a::after {
+            content: ''; position: absolute; bottom: 0; left: 0; width: 0; height: 1px;
+            background: var(--calc-yellow); transition: width 0.4s cubic-bezier(0.16,1,0.3,1);
+        }
+        .nav-links a:hover::after { width: 100%; }
+
+        /* ─── HERO ─── */
+        .hero {
+            min-height: 100vh; position: relative;
+            display: flex; align-items: flex-end;
+            padding: 0 3rem 8rem; overflow: hidden;
+        }
+        .hero-content {
+            max-width: 1100px; position: relative; z-index: 5;
+        }
+        .hero-eyebrow {
+            font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase;
+            letter-spacing: 3px; color: var(--calc-amber); margin-bottom: 2rem;
+            display: flex; align-items: center; gap: 1rem;
+        }
+        .hero-eyebrow::before {
+            content: ''; width: 40px; height: 1px; background: var(--calc-amber);
+        }
+        .hero h1 {
+            font-family: var(--serif); font-size: clamp(3rem, 7vw, 6.5rem);
+            font-weight: 700; line-height: 1.05; letter-spacing: -2px;
+            color: var(--calc-dark); margin-bottom: 2.5rem;
+        }
+        .hero h1 em {
+            font-style: italic; color: var(--calc-gold);
+            position: relative;
+        }
+        .hero h1 em::after {
+            content: ''; position: absolute; bottom: 5px; left: -5px; right: -5px;
+            height: 12px; background: var(--calc-yellow); opacity: 0.15; z-index: -1;
+        }
+        .hero-desc {
+            font-size: 1.15rem; line-height: 1.7; color: var(--calc-gray);
+            max-width: 520px; margin-bottom: 3rem; font-weight: 300;
+        }
+        .hero-meta {
+            display: flex; gap: 3rem;
+        }
+        .meta-item {
+            border-left: 2px solid var(--calc-yellow); padding-left: 1rem;
+        }
+        .meta-num {
+            font-family: var(--mono); font-size: 1.8rem; font-weight: 700;
+            color: var(--calc-dark); display: block; line-height: 1;
+        }
+        .meta-label {
+            font-family: var(--mono); font-size: 0.65rem; text-transform: uppercase;
+            letter-spacing: 1.5px; color: var(--calc-gray); margin-top: 0.3rem;
+        }
+
+        /* Calculator visual floating right */
+        .calc-hero-visual {
+            position: absolute; right: 3rem; top: 50%; transform: translateY(-50%);
+            z-index: 4; opacity: 0;
+        }
+        @media (max-width: 1100px) {
+            .calc-hero-visual {
+                position: relative; right: auto; top: auto; transform: none;
+                margin: 3rem auto 0; max-width: 300px;
+            }
+            .hero { flex-direction: column; align-items: flex-start; padding-bottom: 4rem; }
+        }
+        .calc-device {
+            width: 300px; background: var(--calc-charcoal); border-radius: 24px;
+            padding: 1.8rem; box-shadow:
+                0 40px 80px rgba(0,0,0,0.25),
+                inset 0 1px 0 rgba(255,255,255,0.08);
+            transform: perspective(1000px) rotateY(-8deg) rotateX(5deg);
+            transition: transform 0.6s cubic-bezier(0.16,1,0.3,1);
+        }
+        .calc-device:hover {
+            transform: perspective(1000px) rotateY(-3deg) rotateX(2deg);
+        }
+        .calc-solar {
+            display: flex; gap: 3px; margin-bottom: 1.2rem;
+        }
+        .solar-cell {
+            flex: 1; height: 22px; background: #4A3728;
+            border-radius: 3px; border: 1px solid #5C4330;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+        }
+        .calc-screen {
+            background: var(--calc-lcd); border-radius: 8px;
+            padding: 1.2rem; margin-bottom: 1.5rem;
+            font-family: var(--mono); text-align: right;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.15);
+            position: relative; overflow: hidden;
+        }
+        .calc-screen::after {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 40%;
+            background: linear-gradient(180deg, rgba(255,255,255,0.25), transparent);
+            pointer-events: none;
+        }
+        .calc-screen-small {
+            font-size: 0.6rem; color: #6B7B54; margin-bottom: 0.2rem; letter-spacing: 1px;
+        }
+        .calc-screen-main {
+            font-size: 1.6rem; font-weight: 700; color: #2A331E; letter-spacing: 2px;
+        }
+        .calc-keys {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+        }
+        .ckey {
+            aspect-ratio: 1; border: none; border-radius: 10px;
+            font-family: var(--mono); font-size: 0.85rem; font-weight: 600;
+            cursor: none; transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .ckey.num { background: #3A3A3C; color: #fff; }
+        .ckey.num:hover { background: #48484A; transform: translateY(-2px); }
+        .ckey.op { background: var(--calc-amber); color: var(--calc-dark); }
+        .ckey.op:hover { background: var(--calc-yellow); transform: translateY(-2px); }
+        .ckey.eq {
+            background: var(--calc-orange); color: #fff;
+            grid-column: span 2; aspect-ratio: auto; height: auto;
+        }
+        .ckey.eq:hover { background: #FF8555; transform: translateY(-2px); }
+        .ckey.wide { grid-column: span 2; aspect-ratio: auto; height: auto; }
+
+        /* ─── SECTIONS ─── */
+        section {
+            position: relative; z-index: 5; padding: 8rem 3rem;
+            max-width: 1200px; margin: 0 auto;
+        }
+        .section-header {
+            margin-bottom: 5rem; max-width: 700px;
+        }
+        .section-tag {
+            font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase;
+            letter-spacing: 3px; color: var(--calc-amber); margin-bottom: 1.5rem;
+            display: flex; align-items: center; gap: 1rem;
+        }
+        .section-tag::before {
+            content: ''; width: 30px; height: 1px; background: var(--calc-amber);
+        }
+        .section-title {
+            font-family: var(--serif); font-size: clamp(2rem, 4.5vw, 3.5rem);
+            font-weight: 700; line-height: 1.15; letter-spacing: -1px;
+            margin-bottom: 1.5rem;
+        }
+        .section-body {
+            font-size: 1.1rem; line-height: 1.8; color: var(--calc-gray);
+            max-width: 600px;
+        }
+
+        /* ─── CONSTRAINT CARDS ─── */
+        .constraints-showcase {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem;
+            margin-top: 2rem;
+        }
+        @media (max-width: 900px) { .constraints-showcase { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 500px) { .constraints-showcase { grid-template-columns: 1fr; } }
+
+        .con-card {
+            background: var(--calc-light); border-radius: 16px;
+            padding: 2.2rem; position: relative; overflow: hidden;
+            border: 1px solid rgba(28,28,30,0.05);
+            transition: all 0.5s cubic-bezier(0.16,1,0.3,1);
+        }
+        .con-card::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 3px;
+            background: var(--calc-yellow); transform: scaleX(0); transform-origin: left;
+            transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
+        }
+        .con-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.08);
+        }
+        .con-card:hover::before { transform: scaleX(1); }
+        .con-dim {
+            font-family: var(--mono); font-size: 0.65rem; text-transform: uppercase;
+            letter-spacing: 2px; color: var(--calc-amber); margin-bottom: 1.2rem;
+        }
+        .con-title {
+            font-family: var(--serif); font-size: 1.4rem; font-weight: 700;
+            margin-bottom: 0.8rem; line-height: 1.2;
+        }
+        .con-desc {
+            font-size: 0.9rem; line-height: 1.7; color: var(--calc-gray);
+            margin-bottom: 1.5rem;
+        }
+        .con-badge {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            font-family: var(--mono); font-size: 0.7rem;
+            background: rgba(230,184,0,0.12); color: var(--calc-gold);
+            padding: 0.4rem 0.9rem; border-radius: 20px;
+        }
+        .con-badge::before {
+            content: ''; width: 6px; height: 6px; background: var(--calc-yellow);
+            border-radius: 50%;
+        }
+
+        /* ─── FEATURES (asymmetric) ─── */
+        .features-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;
+        }
+        @media (max-width: 768px) { .features-grid { grid-template-columns: 1fr; } }
+
+        .feat-block {
+            padding: 3rem; border-radius: 20px; position: relative; overflow: hidden;
+            background: var(--calc-light); border: 1px solid rgba(28,28,30,0.04);
+            transition: all 0.5s cubic-bezier(0.16,1,0.3,1);
+        }
+        .feat-block:hover {
+            background: #fff;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.06);
+        }
+        .feat-block:nth-child(odd) { margin-top: 2.5rem; }
+        .feat-block:nth-child(even) { margin-top: -1.25rem; }
+        @media (max-width: 768px) { .feat-block:nth-child(n) { margin-top: 0; } }
+
+        .feat-num {
+            font-family: var(--mono); font-size: 0.7rem; color: var(--calc-amber);
+            margin-bottom: 1.5rem; letter-spacing: 2px;
+        }
+        .feat-title {
+            font-family: var(--serif); font-size: 1.6rem; font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        .feat-desc {
+            font-size: 0.95rem; line-height: 1.75; color: var(--calc-gray);
+            margin-bottom: 1.5rem;
+        }
+        .feat-list {
+            list-style: none;
+        }
+        .feat-list li {
+            padding: 0.5rem 0; font-size: 0.85rem; color: var(--calc-gray);
+            display: flex; align-items: baseline; gap: 0.7rem;
+            border-bottom: 1px solid rgba(28,28,30,0.04);
+        }
+        .feat-list li:last-child { border-bottom: none; }
+        .feat-list li::before {
+            content: '—'; color: var(--calc-yellow); font-weight: 700;
+            font-family: var(--mono);
+        }
+
+        /* ─── ARCHITECTURE ─── */
+        .arch-wrap {
+            background: var(--calc-dark); border-radius: 24px;
+            padding: 4rem; color: var(--calc-light); position: relative; overflow: hidden;
+        }
+        .arch-wrap::before {
+            content: ''; position: absolute; top: -50%; right: -20%;
+            width: 500px; height: 500px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(230,184,0,0.06) 0%, transparent 70%);
+        }
+        .arch-flow {
+            display: flex; flex-direction: column; gap: 0; max-width: 700px; margin: 0 auto;
+            position: relative; z-index: 2;
+        }
+        .arch-node {
+            display: flex; align-items: flex-start; gap: 1.5rem;
+            padding: 1.5rem 2rem; background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06); border-radius: 14px;
+            transition: all 0.4s cubic-bezier(0.16,1,0.3,1);
+        }
+        .arch-node:hover {
+            background: rgba(255,255,255,0.06);
+            border-color: rgba(230,184,0,0.3);
+            transform: translateX(8px);
+        }
+        .arch-idx {
+            font-family: var(--mono); font-size: 1.3rem; font-weight: 700;
+            color: var(--calc-yellow); min-width: 36px; line-height: 1;
+        }
+        .arch-node h4 {
+            font-family: var(--serif); font-size: 1.2rem; margin-bottom: 0.3rem;
+            color: #fff;
+        }
+        .arch-node p {
+            font-size: 0.85rem; color: var(--calc-gray); line-height: 1.6;
+        }
+        .arch-arrow {
+            text-align: center; color: var(--calc-yellow); opacity: 0.3;
+            font-family: var(--mono); font-size: 1.2rem; padding: 0.3rem 0;
+        }
+
+        /* ─── TERMINAL ─── */
+        .terminal {
+            background: #111; border-radius: 16px; overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.06); margin-top: 3rem;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.3);
+        }
+        .term-head {
+            background: rgba(255,255,255,0.03); padding: 0.8rem 1.2rem;
+            display: flex; align-items: center; gap: 0.5rem;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .term-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .term-dot.r { background: #FF5F56; }
+        .term-dot.y { background: #FFBD2E; }
+        .term-dot.g { background: #27C93F; }
+        .term-title {
+            margin-left: 0.8rem; font-family: var(--mono); font-size: 0.7rem;
+            color: var(--calc-gray);
+        }
+        .term-body {
+            padding: 2rem; font-family: var(--mono); font-size: 0.75rem;
+            line-height: 1.9; color: #ccc; overflow-x: auto;
+        }
+        .term-line { white-space: pre; display: block; }
+        .t-y { color: var(--calc-yellow); }
+        .t-g { color: #4CAF50; }
+        .t-w { color: #fff; }
+        .t-d { color: #666; }
+
+        /* ─── SETUP ─── */
+        .setup-split {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;
+        }
+        @media (max-width: 768px) { .setup-split { grid-template-columns: 1fr; } }
+
+        .setup-card {
+            background: #fff; border-radius: 20px;
+            padding: 2.5rem; border: 1px solid rgba(28,28,30,0.05);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+        }
+        .setup-card h3 {
+            font-family: var(--serif); font-size: 1.3rem; margin-bottom: 2rem;
+            display: flex; align-items: center; gap: 0.8rem;
+        }
+        .setup-step {
+            display: flex; gap: 1.2rem; margin-bottom: 2rem;
+        }
+        .step-circle {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: var(--calc-yellow); color: var(--calc-dark);
+            font-family: var(--mono); font-size: 0.8rem; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .step-text h4 {
+            font-size: 1rem; margin-bottom: 0.4rem;
+        }
+        .step-text p {
+            font-size: 0.9rem; color: var(--calc-gray); line-height: 1.6;
+        }
+        .code-box {
+            background: var(--calc-dark); border-radius: 10px;
+            padding: 1.2rem 1.5rem; margin: 1rem 0;
+            font-family: var(--mono); font-size: 0.78rem; line-height: 1.7;
+            overflow-x: auto; position: relative;
+        }
+        .code-box::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%;
+            background: var(--calc-yellow); border-radius: 10px 0 0 10px;
+        }
+        .c-comment { color: #6A6A6A; }
+        .c-cmd { color: var(--calc-yellow); }
+        .c-out { color: #4CAF50; }
+
+        /* ─── DETAIL TABLES ─── */
+        .detail-section {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;
+        }
+        @media (max-width: 768px) { .detail-section { grid-template-columns: 1fr; } }
+
+        .detail-card {
+            background: #fff; border-radius: 20px; padding: 2.5rem;
+            border: 1px solid rgba(28,28,30,0.05);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+        }
+        .detail-card.full { grid-column: 1 / -1; }
+        .detail-card h3 {
+            font-family: var(--serif); font-size: 1.3rem; margin-bottom: 1.5rem;
+            color: var(--calc-gold);
+        }
+        .detail-table {
+            width: 100%; border-collapse: collapse; font-size: 0.85rem;
+        }
+        .detail-table th {
+            text-align: left; padding: 0.9rem 1rem;
+            background: rgba(230,184,0,0.08); color: var(--calc-gold);
+            font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase;
+            letter-spacing: 1px; font-weight: 700;
+            border-bottom: 2px solid rgba(230,184,0,0.2);
+        }
+        .detail-table td {
+            padding: 0.9rem 1rem; border-bottom: 1px solid rgba(28,28,30,0.05);
+            color: var(--calc-gray); line-height: 1.5;
+        }
+        .detail-table tr:hover td {
+            color: var(--calc-dark); background: rgba(230,184,0,0.02);
+        }
+        .domain-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;
+        }
+        .domain-item {
+            padding: 1rem; background: var(--calc-light); border-radius: 10px;
+            border-left: 3px solid var(--calc-yellow);
+        }
+        .domain-item strong {
+            font-size: 0.9rem; color: var(--calc-dark); display: block; margin-bottom: 0.3rem;
+        }
+        .domain-item p {
+            font-size: 0.78rem; color: var(--calc-gray); line-height: 1.4;
+        }
+
+        /* ─── WHY WIN ─── */
+        .win-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem;
+        }
+        @media (max-width: 768px) { .win-grid { grid-template-columns: 1fr; } }
+
+        .win-card {
+            background: var(--calc-light); border-radius: 20px; padding: 3rem;
+            position: relative; overflow: hidden;
+            border: 1px solid rgba(28,28,30,0.04);
+            transition: all 0.5s cubic-bezier(0.16,1,0.3,1);
+        }
+        .win-card:hover {
+            background: #fff;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.07);
+        }
+        .win-card::after {
+            content: attr(data-num);
+            position: absolute; top: -15px; right: 15px;
+            font-family: var(--serif); font-size: 7rem; font-weight: 700;
+            color: rgba(230,184,0,0.04); line-height: 1;
+        }
+        .win-card h3 {
+            font-family: var(--serif); font-size: 1.5rem; margin-bottom: 1.2rem;
+            color: var(--calc-gold);
+            position: relative; z-index: 2;
+        }
+        .win-card p {
+            font-size: 0.95rem; line-height: 1.8; color: var(--calc-gray);
+            position: relative; z-index: 2;
+        }
+        .win-card strong { color: var(--calc-dark); }
+
+        /* ─── FOOTER ─── */
+        footer {
+            background: var(--calc-dark); color: var(--calc-light);
+            padding: 5rem 3rem; text-align: center; position: relative; z-index: 5;
+        }
+        .footer-brand {
+            font-family: var(--mono); font-size: 1.2rem; font-weight: 700;
+            color: var(--calc-yellow); margin-bottom: 1rem;
+        }
+        .footer-tag {
+            font-size: 0.9rem; color: var(--calc-gray); margin-bottom: 0.5rem;
+        }
+        .footer-dims {
+            font-family: var(--mono); font-size: 0.75rem;
+            color: var(--calc-gray); opacity: 0.6;
+            margin-top: 2rem;
+        }
+
+        /* ─── SCROLL REVEAL (hidden until GSAP reveals) ─── */
+        @media (prefers-reduced-motion: no-preference) {
+            .sr:not(.is-revealed) {
+                opacity: 0;
+                visibility: hidden;
+                transform: translateY(32px);
+            }
+        }
+        .sr.is-revealed {
+            opacity: 1;
+            visibility: visible;
+            transform: none;
+        }
+        .hero-reveal:not(.is-revealed) {
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(28px);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Cursor -->
+    <div class="cursor" id="c-dot"></div>
+    <div class="cursor-ring" id="c-ring"></div>
+
+    <!-- Background Layer -->
+    <div class="bg-layer">
+        <div class="bg-calc-icon">+</div>
+        <div class="bg-calc-icon">÷</div>
+        <div class="bg-calc-icon">×</div>
+        <div class="bg-calc-icon">=</div>
+        <div class="bg-calc-icon">%</div>
+    </div>
+    <div class="grid-overlay"></div>
+    <div class="noise"></div>
+
+    <!-- Navigation -->
+    <nav id="navbar">
+        <div class="nav-brand">co-check</div>
+        <ul class="nav-links">
+            <li><a href="#constraints">Constraints</a></li>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#setup">Setup</a></li>
+            <li><a href="#details">Details</a></li>
+            <li><a href="#why-win">Why Win</a></li>
+        </ul>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero" id="hero">
+        <div class="hero-content">
+            <div class="hero-eyebrow hero-reveal">Code Olympics 2026 — 4D Challenge</div>
+            <h1 class="hero-reveal">
+                GitHub Auditor<br>for <em>Constraint</em><br>Compliance
+            </h1>
+            <p class="hero-desc hero-reveal">
+                A Go CLI that scans any public repository and validates Code Olympics 
+                submission rules across four dimensions — D1 through D4 — in ~315 lines.
+            </p>
+            <div class="hero-meta hero-reveal">
+                <div class="meta-item">
+                    <span class="meta-num" data-target="315">0</span>
+                    <span class="meta-label">Lines Total</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-num" data-target="12">0</span>
+                    <span class="meta-label">Languages</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-num" data-target="2">0</span>
+                    <span class="meta-label">Functions</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-num" data-target="4">0</span>
+                    <span class="meta-label">API Calls</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="calc-hero-visual" id="calc-visual">
+            <div class="calc-device">
+                <div class="calc-solar">
+                    <div class="solar-cell"></div>
+                    <div class="solar-cell"></div>
+                    <div class="solar-cell"></div>
+                    <div class="solar-cell"></div>
+                </div>
+                <div class="calc-screen">
+                    <div class="calc-screen-small">AUDIT RESULT</div>
+                    <div class="calc-screen-main" id="calc-display">PASS ✓</div>
+                </div>
+                <div class="calc-keys">
+                    <button class="ckey num">C</button>
+                    <button class="ckey num">⌫</button>
+                    <button class="ckey op">÷</button>
+                    <button class="ckey op">×</button>
+                    <button class="ckey num">7</button>
+                    <button class="ckey num">8</button>
+                    <button class="ckey num">9</button>
+                    <button class="ckey op">-</button>
+                    <button class="ckey num">4</button>
+                    <button class="ckey num">5</button>
+                    <button class="ckey num">6</button>
+                    <button class="ckey op">+</button>
+                    <button class="ckey num">1</button>
+                    <button class="ckey num">2</button>
+                    <button class="ckey num">3</button>
+                    <button class="ckey eq" onclick="animateCalc()">= AUDIT</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Constraints -->
+    <section id="constraints">
+        <div class="section-header">
+            <div class="section-tag sr">Challenge Dimensions</div>
+            <h2 class="section-title sr">Your 4D<br>Combination</h2>
+            <p class="section-body sr">
+                Every Code Olympics project must satisfy 4 dimensions. 
+                This tool audits all of them — while embodying the very constraints it verifies.
+            </p>
+        </div>
+
+        <div class="constraints-showcase">
+            <div class="con-card">
+                <div class="con-dim">Dimension 01</div>
+                <div class="con-title">Single-Function Master</div>
+                <div class="con-desc">
+                    Only 1 function allowed, plus main. Forces concise, linear thinking 
+                    without architectural overhead.
+                </div>
+                <div class="con-badge">main() + analyze() only</div>
+            </div>
+            <div class="con-card">
+                <div class="con-dim">Dimension 02</div>
+                <div class="con-title">Feature-Rich Dev</div>
+                <div class="con-desc">
+                    Maximum 400 lines of countable code. Excludes blanks and comments. 
+                    Every line must earn its place.
+                </div>
+                <div class="con-badge">~315 countable lines</div>
+            </div>
+            <div class="con-card">
+                <div class="con-dim">Dimension 03</div>
+                <div class="con-title">Basic Tools</div>
+                <div class="con-desc">
+                    Build calculators, converters, generators, encoders, or audit tools. 
+                    Focuses on practical utility over complexity.
+                </div>
+                <div class="con-badge">GitHub constraint auditor</div>
+            </div>
+            <div class="con-card">
+                <div class="con-dim">Dimension 04</div>
+                <div class="con-title">Go</div>
+                <div class="con-desc">
+                    Simple by design, explicit by nature, built for clarity. 
+                    Standard library only — no external dependencies.
+                </div>
+                <div class="con-badge">Pure Go, zero deps</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section id="features">
+        <div class="section-header">
+            <div class="section-tag sr">Capabilities</div>
+            <h2 class="section-title sr">Maximum Utility,<br>Minimum Space</h2>
+            <p class="section-body sr">
+                In just ~315 lines: 4 API calls, 12+ language parsing, 8 core checks, 
+                9 budget tiers, 10 domain scores, and ASCII report generation.
+            </p>
+        </div>
+
+        <div class="features-grid">
+            <div class="feat-block">
+                <div class="feat-num">01</div>
+                <h3 class="feat-title">Multi-Language Audit Engine</h3>
+                <p class="feat-desc">
+                    Scans repositories in Go, Python, JavaScript, TypeScript, Java, 
+                    C, C++, C#, Ruby, PHP, Rust, and Bash.
+                </p>
+                <ul class="feat-list">
+                    <li>Up to 80 source files per scan</li>
+                    <li>Auto-skips vendor / node_modules / build dirs</li>
+                    <li>120KB file size safety limit</li>
+                    <li>Cross-platform regex pattern matching</li>
+                </ul>
+            </div>
+            <div class="feat-block">
+                <div class="feat-num">02</div>
+                <h3 class="feat-title">4D Constraint Detection</h3>
+                <p class="feat-desc">
+                    Validates all Code Olympics dimensions with weighted scoring 
+                    and intelligent fallbacks.
+                </p>
+                <ul class="feat-list">
+                    <li>D1: 8 core rules (imports, functions, loops, variables)</li>
+                    <li>D2: 9 line budget tiers (50 → 650)</li>
+                    <li>D3: 10 domain keyword groups (×4 / ×2 / ×1 weights)</li>
+                    <li>D4: GitHub API + file extension fallback</li>
+                </ul>
+            </div>
+            <div class="feat-block">
+                <div class="feat-num">03</div>
+                <h3 class="feat-title">Real-Time Progress Feedback</h3>
+                <p class="feat-desc">
+                    Visual progress spinners and animated status updates during 
+                    each of the 4 GitHub API phases.
+                </p>
+                <ul class="feat-list">
+                    <li>4-frame spinner animation (~160ms per step)</li>
+                    <li>Phase-by-phase completion indicators</li>
+                    <li>Graceful error handling with descriptions</li>
+                    <li>Dual output: console + file report</li>
+                </ul>
+            </div>
+            <div class="feat-block">
+                <div class="feat-num">04</div>
+                <h3 class="feat-title">Auto-Generated Audit Reports</h3>
+                <p class="feat-desc">
+                    Every scan produces a timestamped co-check-report.txt 
+                    with full constraint breakdown for judges.
+                </p>
+                <ul class="feat-list">
+                    <li>Horizontal ASCII tables per dimension</li>
+                    <li>Score-based domain ranking (top 3)</li>
+                    <li>Tightest passing tier for line budgets</li>
+                    <li>File count, language, and line summary</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture -->
+    <section id="architecture">
+        <div class="section-header">
+            <div class="section-tag sr">System Design</div>
+            <h2 class="section-title sr">Single Function,<br>Infinite Capability</h2>
+            <p class="section-body sr">
+                Despite the Single-Function Master constraint, modular logic is achieved 
+                through well-structured sections within the master analyze() function.
+            </p>
+        </div>
+
+        <div class="arch-wrap sr">
+            <div class="arch-flow">
+                <div class="arch-node">
+                    <div class="arch-idx">01</div>
+                    <div>
+                        <h4>CLI Parsing</h4>
+                        <p>URL argument or interactive prompt, -h/--help, GITHUB_TOKEN env check</p>
+                    </div>
+                </div>
+                <div class="arch-arrow">↓</div>
+                <div class="arch-node">
+                    <div class="arch-idx">02</div>
+                    <div>
+                        <h4>GitHub API Phase</h4>
+                        <p>Repo metadata → Branch resolution → File tree → Blob downloads (4 calls)</p>
+                    </div>
+                </div>
+                <div class="arch-arrow">↓</div>
+                <div class="arch-node">
+                    <div class="arch-idx">03</div>
+                    <div>
+                        <h4>File Download & Filter</h4>
+                        <p>README base64 decode, source fetch, skip vendor/build dirs, count extensions</p>
+                    </div>
+                </div>
+                <div class="arch-arrow">↓</div>
+                <div class="arch-node">
+                    <div class="arch-idx">04</div>
+                    <div>
+                        <h4>Regex Analysis Engine</h4>
+                        <p>Countable lines, imports, functions, variables, loops, errors, sleep, state</p>
+                    </div>
+                </div>
+                <div class="arch-arrow">↓</div>
+                <div class="arch-node">
+                    <div class="arch-idx">05</div>
+                    <div>
+                        <h4>Report Generation</h4>
+                        <p>Console output with ASCII tables + co-check-report.txt file write</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="terminal sr">
+            <div class="term-head">
+                <div class="term-dot r"></div>
+                <div class="term-dot y"></div>
+                <div class="term-dot g"></div>
+                <span class="term-title">co-check.exe — audit output</span>
+            </div>
+            <div class="term-body">
+                <span class="term-line t-y">  ╔════════════════════════════════════════════════════════╗</span>
+                <span class="term-line t-y">  ║  ┌────────────────────────────────────────────────┐  ║</span>
+                <span class="term-line t-w">  ║  │  ◉  CODE OLYMPICS 2026  ·  co-check            │  ║</span>
+                <span class="term-line t-d">  ║  │      GitHub 4D Constraint Auditor              │  ║</span>
+                <span class="term-line t-d">  ║  │  D1 Core │ D2 Lines │ D3 Domain │ D4 Language  │  ║</span>
+                <span class="term-line t-y">  ║  └────────────────────────────────────────────────┘  ║</span>
+                <span class="term-line t-y">  ╚════════════════════════════════════════════════════════╝</span>
+                <span class="term-line"></span>
+                <span class="term-line t-w">  Target: owner/repo</span>
+                <span class="term-line"></span>
+                <span class="term-line t-g">  ✓  Connecting to GitHub...</span>
+                <span class="term-line t-g">  ✓  Branch: main</span>
+                <span class="term-line t-g">  ✓  Tree: 47 entries</span>
+                <span class="term-line t-g">  ✓  Files: 12 analyzed, 2 skipped</span>
+                <span class="term-line t-g">  ✓  Analysis complete</span>
+                <span class="term-line"></span>
+                <span class="term-line t-y">  ╔════════════════════════════════════════════════════════╗</span>
+                <span class="term-line t-y">  ║           PASSED CONSTRAINTS REPORT                  ║</span>
+                <span class="term-line t-y">  ╚════════════════════════════════════════════════════════╝</span>
+                <span class="term-line"></span>
+                <span class="term-line t-w">  Scan: 12 files | Language: Go | Countable lines: 287</span>
+                <span class="term-line"></span>
+                <span class="term-line t-d">  D1 -- Core Constraints</span>
+                <span class="term-line t-y">  +----------------------------------+----------------------------------+</span>
+                <span class="term-line t-w">  | Single-Function Master           | Feature-Rich Dev (287 lines)     |</span>
+                <span class="term-line t-y">  +----------------------------------+----------------------------------+</span>
+                <span class="term-line"></span>
+                <span class="term-line t-d">  Report saved: co-check-report.txt</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Setup -->
+    <section id="setup">
+        <div class="section-header">
+            <div class="section-tag sr">Installation</div>
+            <h2 class="section-title sr">Setup & Run<br>in Minutes</h2>
+            <p class="section-body sr">
+                Go 1.21+ required. Single binary, zero dependencies. 
+                Optional GitHub token for 5,000 req/hour vs 60.
+            </p>
+        </div>
+
+        <div class="setup-split">
+            <div class="setup-card">
+                <h3>📋 Prerequisites</h3>
+                <div class="setup-step">
+                    <div class="step-circle">1</div>
+                    <div class="step-text">
+                        <h4>Install Go 1.21+</h4>
+                        <p>Download from go.dev/dl and verify with <code>go version</code></p>
+                    </div>
+                </div>
+                <div class="setup-step">
+                    <div class="step-circle">2</div>
+                    <div class="step-text">
+                        <h4>Get the Code</h4>
+                        <p>Clone or download the project directory and cd into it</p>
+                    </div>
+                </div>
+                <div class="setup-step">
+                    <div class="step-circle">3</div>
+                    <div class="step-text">
+                        <h4>Optional: GitHub Token</h4>
+                        <p>Create a Personal Access Token at GitHub Settings → Developer settings</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="setup-card">
+                <h3>🚀 Quick Start</h3>
+                <div class="code-box">
+                    <span class="c-comment"># Navigate to project</span><br>
+                    <span class="c-cmd">cd co-check</span>
+                </div>
+                <div class="code-box">
+                    <span class="c-comment"># Build the binary</span><br>
+                    <span class="c-cmd">go build -o co-check.exe .</span>
+                </div>
+                <div class="code-box">
+                    <span class="c-comment"># Run with a GitHub URL</span><br>
+                    <span class="c-cmd">.\co-check.exe https://github.com/owner/repo</span>
+                </div>
+                <div class="code-box">
+                    <span class="c-comment"># Or run interactively</span><br>
+                    <span class="c-cmd">go run .</span><br>
+                    <span class="c-out">GitHub URL: https://github.com/...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="setup-card" style="margin-top:2rem;">
+            <h3>🔑 Token Setup (All Platforms)</h3>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.2rem;margin-top:1.5rem;">
+                <div class="code-box">
+                    <span class="c-comment"># Windows PowerShell</span><br>
+                    <span class="c-cmd">$env:GITHUB_TOKEN = "ghp_..."</span><br>
+                    <span class="c-cmd">.\co-check.exe https://github.com/...</span>
+                </div>
+                <div class="code-box">
+                    <span class="c-comment"># Windows CMD</span><br>
+                    <span class="c-cmd">set GITHUB_TOKEN=ghp_...</span><br>
+                    <span class="c-cmd">co-check.exe https://github.com/...</span>
+                </div>
+                <div class="code-box">
+                    <span class="c-comment"># Linux / macOS</span><br>
+                    <span class="c-cmd">export GITHUB_TOKEN=ghp_...</span><br>
+                    <span class="c-cmd">./co-check https://github.com/...</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Details -->
+    <section id="details">
+        <div class="section-header">
+            <div class="section-tag sr">Deep Dive</div>
+            <h2 class="section-title sr">What It Checks<br>Under the Hood</h2>
+            <p class="section-body sr">
+                Regex-based heuristic analysis evaluates constraint compliance across 
+                4 dimensions without requiring AST parsers.
+            </p>
+        </div>
+
+        <div class="detail-section">
+            <div class="detail-card">
+                <h3>D1 — Core Constraints (8 Rules)</h3>
+                <table class="detail-table">
+                    <thead><tr><th>Rule</th><th>Detection</th></tr></thead>
+                    <tbody>
+                        <tr><td>No-Import Rookie</td><td>import/from/#include/require = 0</td></tr>
+                        <tr><td>Few-Variable Hero</td><td>≤ 8 variables (:=, let, const)</td></tr>
+                        <tr><td>Single-Function Master</td><td>≤ 1 non-main function</td></tr>
+                        <tr><td>Error-Proof Coder</td><td>err handling + zero panic</td></tr>
+                        <tr><td>One-Loop Warrior</td><td>≤ 1 for/while/do</td></tr>
+                        <tr><td>Short-Name Ninja</td><td>All variables ≤ 3 chars</td></tr>
+                        <tr><td>Fast-Response Builder</td><td>Zero time.Sleep</td></tr>
+                        <tr><td>Simple-State Creator</td><td>2-6 case OR 2+ state kw</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="detail-card">
+                <h3>D2 — Line Budget Tiers</h3>
+                <table class="detail-table">
+                    <thead><tr><th>Tier</th><th>Max Lines</th></tr></thead>
+                    <tbody>
+                        <tr><td>Tiny Scripter</td><td>50</td></tr>
+                        <tr><td>Mini Builder</td><td>100</td></tr>
+                        <tr><td>Compact Coder</td><td>150</td></tr>
+                        <tr><td>Standard Maker</td><td>200</td></tr>
+                        <tr><td>Detailed Creator</td><td>300</td></tr>
+                        <tr style="background:rgba(230,184,0,0.08);"><td><strong>Feature-Rich Dev</strong></td><td><strong>400 ← HERE</strong></td></tr>
+                        <tr><td>Professional Builder</td><td>500</td></tr>
+                        <tr><td>Enterprise Creator</td><td>650</td></tr>
+                    </tbody>
+                </table>
+                <p style="margin-top:1rem;font-size:0.85rem;color:var(--calc-gray);">
+                    Reports the tightest passing tier (smallest max ≥ actual countable lines).
+                </p>
+            </div>
+
+            <div class="detail-card full">
+                <h3>D3 — Project Domains (10 Groups, Weighted Scoring)</h3>
+                <div class="domain-grid">
+                    <div class="domain-item"><strong>Basic Tools</strong><p>convert, calculator, encoder, generator, tool, audit</p></div>
+                    <div class="domain-item"><strong>Simple Games</strong><p>game, tic, hangman, puzzle, player, score</p></div>
+                    <div class="domain-item"><strong>Text Processing</strong><p>text, format, parser, search, editor, markdown</p></div>
+                    <div class="domain-item"><strong>Number Crunching</strong><p>math, statistic, algorithm, solver, numeric</p></div>
+                    <div class="domain-item"><strong>File Management</strong><p>file, folder, directory, organize, rename, copy</p></div>
+                    <div class="domain-item"><strong>Quiz Systems</strong><p>quiz, trivia, flashcard, assessment, question</p></div>
+                    <div class="domain-item"><strong>Visual Creation</strong><p>ascii, chart, graphic, visual, draw, render</p></div>
+                    <div class="domain-item"><strong>Mini Databases</strong><p>record, inventory, contact, database, sqlite</p></div>
+                    <div class="domain-item"><strong>Data Processing</strong><p>data, pipeline, transform, validate, csv, json</p></div>
+                    <div class="domain-item"><strong>System Utilities</strong><p>monitor, clean, health, util, daemon, process</p></div>
+                </div>
+                <p style="margin-top:1.5rem;font-size:0.9rem;color:var(--calc-gray);">
+                    <strong style="color:var(--calc-gold);">Scoring:</strong> Meta/README/Topics ×4 + File Paths ×2 + Source Code ×1. Top 3 domains displayed.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Why Win -->
+    <section id="why-win">
+        <div class="section-header">
+            <div class="section-tag sr">Competitive Edge</div>
+            <h2 class="section-title sr">Why This Project<br>Should Win</h2>
+            <p class="section-body sr">
+                It doesn't just check constraints — it embodies them. 
+                It solves a real problem while staying under every limit.
+            </p>
+        </div>
+
+        <div class="win-grid">
+            <div class="win-card" data-num="01">
+                <h3>Maximum Utility in Minimum Space</h3>
+                <p>
+                    In just <strong>~315 lines</strong>, it performs 4 GitHub API calls, 
+                    parses 12+ languages, checks 8 D1 constraints, evaluates 9 D2 tiers, 
+                    scores 10 D3 domains, detects D4 language, and generates ASCII audit reports. 
+                    No bloat. Every line earns its place.
+                </p>
+            </div>
+            <div class="win-card" data-num="02">
+                <h3>Real-World Impact</h3>
+                <p>
+                    Unlike toy projects, this solves an <strong>actual problem</strong>: 
+                    judges can audit hundreds of submissions automatically, participants can self-check 
+                    before submitting, and it generates court-ready evidence in 
+                    <code style="font-family:var(--mono);color:var(--calc-gold);">co-check-report.txt</code>. 
+                    It's a tool for the competition that hosts the competition.
+                </p>
+            </div>
+            <div class="win-card" data-num="03">
+                <h3>Architectural Elegance</h3>
+                <p>
+                    Despite Single-Function Master constraint, it achieves <strong>modular logic</strong> 
+                    via well-structured sections. Zero dependencies — standard library only. 
+                    Defensive programming handles API failures, empty repos, and missing branches. 
+                    Multi-platform regex supports 12 programming languages without parsers.
+                </p>
+            </div>
+            <div class="win-card" data-num="04">
+                <h3>Constraint Purity</h3>
+                <p>
+                    This project <strong>eats its own dog food</strong>. 
+                    Run co-check on this repo and it passes its own audit. 
+                    It audits Single-Function Master projects while being one itself. 
+                    It measures Feature-Rich Dev line counts while staying under 400 lines. 
+                    It is literally a Basic Tool in Go.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-brand">co-check</div>
+        <div class="footer-tag">Built for Code Olympics 2026</div>
+        <div class="footer-tag">Attach this full 4D combination when submitting your project</div>
+        <div class="footer-dims">
+            Single-Function Master | Feature-Rich Dev (400) | Basic Tools | Go
+        </div>
+    </footer>
+
+    <script>
+        gsap.registerPlugin(ScrollTrigger);
+
+        const motionOK = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const stOnce = { once: true, toggleActions: 'play none none none' };
+
+        function markRevealed(el) {
+            if (!el) return;
+            if (el.forEach) el.forEach(markRevealed);
+            else el.classList.add('is-revealed');
+        }
+
+        function scrollReveal(el, opts = {}) {
+            if (!motionOK) { markRevealed(el); return; }
+            gsap.fromTo(el,
+                { autoAlpha: 0, y: opts.y ?? 36 },
+                {
+                    autoAlpha: 1, y: 0,
+                    duration: opts.duration ?? 0.85,
+                    ease: 'power3.out',
+                    immediateRender: false,
+                    scrollTrigger: {
+                        trigger: opts.trigger || el,
+                        start: opts.start || 'top 86%',
+                        ...stOnce
+                    },
+                    onComplete: () => markRevealed(el)
+                }
+            );
+        }
+
+        function scrollRevealStagger(container, selector, opts = {}) {
+            const items = container.querySelectorAll(selector);
+            if (!items.length) return;
+            if (!motionOK) {
+                items.forEach(markRevealed);
+                return;
+            }
+            gsap.fromTo(items,
+                { autoAlpha: 0, y: opts.y ?? 44 },
+                {
+                    autoAlpha: 1, y: 0,
+                    duration: opts.duration ?? 0.75,
+                    stagger: opts.stagger ?? 0.1,
+                    ease: 'power3.out',
+                    immediateRender: false,
+                    scrollTrigger: {
+                        trigger: opts.trigger || container,
+                        start: opts.start || 'top 84%',
+                        ...stOnce
+                    },
+                    onComplete: () => items.forEach(markRevealed)
+                }
+            );
+        }
+
+        /* ─── CUSTOM CURSOR ─── */
+        const dot = document.getElementById('c-dot');
+        const ring = document.getElementById('c-ring');
+        let mx = 0, my = 0, rx = 0, ry = 0;
+
+        if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+            document.addEventListener('mousemove', (e) => {
+                mx = e.clientX; my = e.clientY;
+                dot.style.left = (mx - 6) + 'px';
+                dot.style.top = (my - 6) + 'px';
+            });
+            function loopCursor() {
+                rx += (mx - rx) * 0.12;
+                ry += (my - ry) * 0.12;
+                ring.style.left = (rx - 20) + 'px';
+                ring.style.top = (ry - 20) + 'px';
+                requestAnimationFrame(loopCursor);
+            }
+            loopCursor();
+            document.querySelectorAll('a, button, .con-card, .feat-block, .ckey, .win-card, .arch-node').forEach(el => {
+                el.addEventListener('mouseenter', () => { dot.classList.add('hover'); ring.classList.add('hover'); });
+                el.addEventListener('mouseleave', () => { dot.classList.remove('hover'); ring.classList.remove('hover'); });
+            });
+        } else {
+            dot.style.display = 'none';
+            ring.style.display = 'none';
+        }
+
+        /* ─── NAV REVEAL ─── */
+        if (motionOK) {
+            gsap.to('#navbar', { y: 0, duration: 0.8, ease: 'power3.out', delay: 0.6 });
+        } else {
+            gsap.set('#navbar', { y: 0 });
+        }
+
+        /* ─── HERO ENTRANCE (no scroll trigger — avoids conflict with .sr) ─── */
+        const heroEls = gsap.utils.toArray('.hero-reveal');
+        if (motionOK) {
+            const heroTl = gsap.timeline({ delay: 0.2 });
+            heroTl
+                .fromTo(heroEls, { autoAlpha: 0, y: 40 }, { autoAlpha: 1, y: 0, duration: 0.85, stagger: 0.12, ease: 'power3.out' })
+                .to('#calc-visual', { autoAlpha: 1, y: 0, duration: 1, ease: 'power3.out' }, '-=0.5');
+            heroTl.eventCallback('onComplete', () => heroEls.forEach(markRevealed));
+        } else {
+            gsap.set(['#calc-visual', ...heroEls], { autoAlpha: 1, y: 0 });
+            heroEls.forEach(markRevealed);
+        }
+
+        /* ─── STAT COUNTERS ─── */
+        document.querySelectorAll('.meta-num').forEach(num => {
+            const target = parseInt(num.dataset.target, 10);
+            if (!motionOK) { num.textContent = target; return; }
+            gsap.to(num, {
+                innerText: target, duration: 2, delay: 0.8,
+                snap: { innerText: 1 }, ease: 'power2.out'
+            });
+        });
+
+        /* ─── CALCULATOR 3D TILT ─── */
+        const calcDevice = document.querySelector('.calc-device');
+        if (calcDevice) {
+            document.addEventListener('mousemove', (e) => {
+                if (window.innerWidth < 900) return;
+                const rect = calcDevice.getBoundingClientRect();
+                const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+                const tiltX = (e.clientY - cy) / 25, tiltY = (e.clientX - cx) / 25;
+                calcDevice.style.transform = `perspective(1000px) rotateX(${-tiltX}deg) rotateY(${tiltY}deg)`;
+            });
+        }
+
+        /* ─── CALC DISPLAY ANIMATION ─── */
+        function animateCalc() {
+            const disp = document.getElementById('calc-display');
+            const seq = ['SCAN...', 'D1 ✓', 'D2 ✓', 'D3 ✓', 'D4 ✓', 'PASS ✓'];
+            let i = 0;
+            const iv = setInterval(() => {
+                disp.textContent = seq[i];
+                gsap.fromTo(disp, { scale: 0.92 }, { scale: 1, duration: 0.2, ease: 'power2.out' });
+                i++;
+                if (i >= seq.length) clearInterval(iv);
+            }, 350);
+        }
+
+        /* ─── SCROLL REVEALS: headers & standalone blocks only ─── */
+        gsap.utils.toArray('.sr').forEach(el => scrollReveal(el));
+
+        /* ─── STAGGERED CARD GRIDS (one trigger per section — no double .sr) ─── */
+        gsap.utils.toArray('.constraints-showcase, .features-grid, .win-grid').forEach(grid => {
+            scrollRevealStagger(grid, ':scope > *');
+        });
+        const setupSec = document.querySelector('#setup');
+        if (setupSec) scrollRevealStagger(setupSec, '.setup-card', { start: 'top 86%' });
+        const detailSec = document.querySelector('#details .detail-section');
+        if (detailSec) scrollRevealStagger(detailSec, '.detail-card', { start: 'top 86%' });
+
+        /* ─── ARCHITECTURE: single block reveal, inner nodes always visible ─── */
+        const archWrap = document.querySelector('.arch-wrap.sr');
+        if (archWrap) scrollReveal(archWrap, { y: 48, start: 'top 85%' });
+
+        /* ─── TERMINAL: reveal container only (lines stay readable) ─── */
+        const terminal = document.querySelector('.terminal.sr');
+        if (terminal) scrollReveal(terminal, { y: 40, start: 'top 85%' });
+
+        /* ─── SMOOTH SCROLL LINKS ─── */
+        document.querySelectorAll('a[href^="#"]').forEach(a => {
+            a.addEventListener('click', function(e) {
+                e.preventDefault();
+                const t = document.querySelector(this.getAttribute('href'));
+                if (t) {
+                    const y = t.getBoundingClientRect().top + window.scrollY - 90;
+                    window.scrollTo({ top: y, behavior: 'smooth' });
+                }
+            });
+        });
+
+        /* ─── NAV SHADOW ON SCROLL ─── */
+        ScrollTrigger.create({
+            start: 0,
+            end: 99999,
+            onUpdate: (self) => {
+                const nav = document.getElementById('navbar');
+                nav.style.boxShadow = self.scroll() > 100 ? '0 10px 40px rgba(0,0,0,0.06)' : 'none';
+            }
+        });
+
+        window.addEventListener('load', () => ScrollTrigger.refresh());
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => ScrollTrigger.refresh(), 200);
+        });
+    </script>
+</body>
+</html>
